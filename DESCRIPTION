@@ -1,0 +1,27 @@
+Package: timss2019PaidLeaveHomeResources
+Type: Project
+Title: Reproducibility Code for Paid Parental Leave, Home Resources, and Grade 4 Mathematics
+Version: 1.0.0
+Authors@R: c(
+    person("Armel Landry", "Batchi-Bouyou", role = c("aut", "cre")),
+    person("Päivi", "Häkkinen", role = "aut"),
+    person("Ronny", "Scherer", role = "aut")
+  )
+Description: Reproducibility code for a TIMSS 2019 Grade 4 analysis of home resources, mathematics achievement, and paid parental leave across education systems.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+    broom,
+    countrycode,
+    dplyr,
+    EdSurvey,
+    ggplot2,
+    ggrepel,
+    gt,
+    metafor,
+    purrr,
+    readr,
+    scales,
+    tibble,
+    tidyr,
+    WDI
