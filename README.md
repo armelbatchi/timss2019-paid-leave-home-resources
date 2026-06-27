@@ -1,6 +1,10 @@
 # Paid parental leave, home resources, and Grade 4 mathematics
 
-Reviewer-facing reproducibility code for:
+<p align="center">
+  <a href="https://doi.org/10.5281/zenodo.20963916">
+    <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.20963916.svg" alt="DOI">
+  </a>
+</p>
 
 **Does More Generous Paid Parental Leave Policy Change How Home Support Matters for Children’s Early Numeracy? Evidence From 39 Education Systems**
 
