@@ -1,0 +1,217 @@
+---
+title: "Paid Parental Leave, Home Resources, and Grade 4 Mathematics"
+subtitle: "Reproducibility analysis for TIMSS 2019"
+author: "Armel Landry Batchi-Bouyou, Päivi Häkkinen, and Ronny Scherer"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    number_sections: true
+    fig_width: 10
+    fig_height: 7
+---
+
+```{r setup, include=FALSE}
+project_root <- normalizePath("..", winslash = "/", mustWork = TRUE)
+knitr::opts_knit$set(root.dir = project_root)
+setwd(project_root)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.retina = 2,
+  dpi = 150,
+  cache = FALSE
+)
+
+source("R/00_setup.R")
+source("R/01_helpers.R")
+source("R/02_external_data.R")
+source("R/03_timss_data.R")
+source("R/04_descriptives.R")
+source("R/05_country_gradients.R")
+source("R/06_meta_regression.R")
+source("R/07_supplementary.R")
+```
+
+# Scope and reproducibility note
+
+This code-only workflow reproduces the tables and figures for the analysis of
+TIMSS 2019 Grade 4 mathematics, home resources for learning, and paid parental
+leave across 39 education systems. TIMSS microdata are not included. The user
+must obtain the official files and set `TIMSS_DIR` in a local `.Renviron` file.
+
+The released analysis estimates weighted linear regressions separately for the
+five mathematics plausible values, uses the TIMSS final student weight
+`TOTWGT`, and pools coefficients and model-based weighted-regression standard
+errors with Rubin's rules. It does **not** use TIMSS replicate weights. The
+manuscript must use the same description.
+
+The analytical sequence is:
+
+1. Descriptive system profiles and the leave-group heatmap.
+2. System-specific home-resource gradients under main and reduced adjustment.
+3. Random-effects meta-regression of the system gradients on paid leave,
+   adjusted for GDP per capita and female labour force participation.
+4. Supplementary student-level and system-level correlations.
+
+# Data access and preparation
+
+## External policy and macroeconomic indicators
+
+The paid-leave crosswalk is frozen in `R/02_external_data.R` so that source
+revisions do not silently change the archived results. GDP per capita and female
+labour force participation are averaged across 2018 to 2020 using the World Bank
+API, matching the released code.
+
+```{r external-data}
+country_external <- build_country_external()
+country_external
+```
+
+## TIMSS 2019 Grade 4
+
+```{r timss-data}
+timss_2019 <- read_timss_2019()
+raw_data <- extract_timss_variables(timss_2019)
+analysis_data <- build_analysis_data(raw_data, country_external)
+validate_analysis_data(analysis_data)
+
+cat("Students:", format(nrow(analysis_data), big.mark = ","), "\n")
+cat("Education systems:", n_distinct(analysis_data$iso3c), "\n")
+```
+
+# RQ1: Descriptive system profiles
+
+```{r table1}
+country_profiles <- build_country_profiles(analysis_data)
+table1 <- make_table1(country_profiles)
+table1
+```
+
+```{r figure1, fig.width=9, fig.height=5}
+heatmap_data <- build_heatmap_data(analysis_data)
+figure1 <- make_figure1(heatmap_data)
+figure1
+```
+
+# RQ2: System-specific home-resource gradients
+
+The main specification adjusts for parental education, preschool years, and
+gender. The reduced specification omits parental education but retains the same
+complete-case sample to isolate the change in adjustment.
+
+```{r country-slopes}
+country_slopes_main <- build_country_slopes(analysis_data, adjustment = "main")
+country_slopes_reduced <- build_country_slopes(analysis_data, adjustment = "reduced")
+
+cat("Main-model systems:", nrow(country_slopes_main), "\n")
+cat(
+  "Statistically significant main-model slopes:",
+  sum(country_slopes_main$p < 0.05),
+  "of",
+  nrow(country_slopes_main),
+  "\n"
+)
+```
+
+```{r table2}
+table2 <- make_slope_table(country_slopes_main, adjustment = "main")
+table2
+```
+
+```{r table-s1}
+table_s1 <- make_slope_table(country_slopes_reduced, adjustment = "reduced")
+table_s1
+```
+
+```{r figure2, fig.width=10, fig.height=6.5}
+prediction_grid <- build_prediction_grid(analysis_data)
+figure2 <- make_figure2(prediction_grid)
+figure2
+```
+
+```{r figure-s2, fig.width=8.5, fig.height=10}
+figure_s2 <- make_figure_s2(country_slopes_main)
+figure_s2
+```
+
+# RQ3: Cross-national meta-regression
+
+The meta-regression is the only inferential test of whether leave duration is
+associated with variation in the home-resource gradient across systems.
+
+```{r meta-model}
+meta_data <- build_meta_data(country_slopes_main, country_external)
+meta_model <- fit_meta_regression(meta_data)
+summary(meta_model)
+```
+
+```{r table3}
+table3 <- make_table3(meta_model, meta_data)
+table3
+```
+
+```{r figure3, fig.width=10, fig.height=7}
+figure3 <- make_figure3(meta_data)
+figure3
+```
+
+# Supplementary correlations
+
+```{r table-s2}
+student_correlations <- build_student_correlation_matrix(analysis_data)
+table_s2 <- make_table_s2(student_correlations)
+table_s2
+```
+
+```{r figure-s1, fig.width=9, fig.height=7.5}
+figure_s1 <- make_figure_s1(country_profiles, country_slopes_main)
+figure_s1
+```
+
+# Key numerical checks
+
+```{r numerical-checks}
+pooled_model <- metafor::rma(
+  yi = resource_slope,
+  vi = se^2,
+  data = country_slopes_main,
+  method = "REML"
+)
+
+leave_row <- broom::tidy(meta_model) %>%
+  filter(term == "leave_weeks")
+
+checks <- tibble(
+  Quantity = c(
+    "Education systems in slope analysis",
+    "Significant system slopes",
+    "Smallest system slope",
+    "Largest system slope",
+    "Random-effects pooled slope",
+    "Leave meta-regression coefficient",
+    "Leave meta-regression p value"
+  ),
+  Value = c(
+    nrow(country_slopes_main),
+    sum(country_slopes_main$p < 0.05),
+    min(country_slopes_main$resource_slope),
+    max(country_slopes_main$resource_slope),
+    as.numeric(pooled_model$b),
+    leave_row$estimate,
+    leave_row$p.value
+  )
+)
+
+checks
+```
+
+# Session information
+
+```{r session-information}
+sessionInfo()
+```
